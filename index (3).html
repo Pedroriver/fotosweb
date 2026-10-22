@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>html{color-scheme:light dark}</style>
+<title>Pyter Fotografía</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Layout: quiet white page, small typewriter menu top right, one edge-to-edge strip of tall photos that scrolls sideways. */
+:root{
+  --bg:#fbfaf7;
+  --fg:#15130f;
+  --muted:#6a665d;
+  --line:#dedad0;
+  --accent:#b4501a;
+  --lb-bg:#0a0a09;
+  --lb-fg:#efece4;
+  --f-mono:"Courier Prime","Courier New",monospace;
+  --f-serif:"Libre Baskerville",Georgia,serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--bg:#0f0e0c;--fg:#efece4;--muted:#a29d92;--line:#2c2a25;--accent:#e8883f;color-scheme:dark}
+}
+:root[data-theme="dark"]{--bg:#0f0e0c;--fg:#efece4;--muted:#a29d92;--line:#2c2a25;--accent:#e8883f;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.7 var(--f-serif)}
+.inner{max-width:1280px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* masthead */
+.mast{display:flex;justify-content:space-between;align-items:center;gap:6px 32px;flex-wrap:wrap;padding-block:22px 14px}
+.brand{font:700 1.6rem/1 var(--f-mono);letter-spacing:.06em;color:var(--fg);text-decoration:none;text-transform:uppercase}
+.menu{display:flex;flex-wrap:wrap;gap:0 22px;justify-content:flex-end;max-width:27rem;margin:0;padding:0;list-style:none}
+.menu a{display:inline-flex;align-items:center;min-height:44px;font:700 12px/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--fg);text-decoration:none;border-bottom:2px solid transparent;padding-top:2px}
+.menu a:hover,.menu a[aria-current="page"]{border-bottom-color:var(--accent)}
+.menu a:focus-visible,.brand:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+
+.head-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding-block:20px 14px}
+h1{margin:0;font:700 clamp(1.6rem,4vw,2.1rem)/1.15 var(--f-serif);text-wrap:balance}
+.count{margin:0;font:12px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+
+/* photo strip */
+.strip{--h:clamp(300px,62vh,720px);display:flex;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;scrollbar-width:thin;scrollbar-color:var(--muted) transparent;padding-left:env(safe-area-inset-left,0px);cursor:grab}
+.strip:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.strip.dragging{cursor:grabbing;scroll-snap-type:none}
+.strip.dragging img{pointer-events:none}
+.strip figure{flex:none;margin:0;scroll-snap-align:start}
+.ph{display:block;padding:0;border:0;background:none;cursor:inherit;color:inherit}
+.ph:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
+.ph img{display:block;height:var(--h);width:auto;transition:opacity .25s}
+@media (hover:hover){.strip:hover .ph:not(:hover) img{opacity:.78}}
+
+.bar{display:flex;justify-content:space-between;align-items:center;gap:12px 24px;flex-wrap:wrap;padding-block:14px 8px}
+.arrows{display:flex;gap:8px}
+.arrows button,.btn{min-width:44px;min-height:44px;padding:0 14px;background:transparent;color:var(--fg);border:1px solid var(--line);border-radius:2px;font:700 14px var(--f-mono);letter-spacing:.06em;cursor:pointer}
+.arrows button:hover,.btn:hover{border-color:var(--accent)}
+.arrows button:focus-visible,.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.note{margin:0;max-width:60ch;font:12px/1.6 var(--f-mono);color:var(--muted)}
+
+/* text views */
+.text{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:28px 56px;padding-block:8px 28px}
+.text p{margin:0 0 1em;max-width:58ch;font-size:1.05rem}
+.text dl{margin:0;display:grid;gap:14px}
+.text dt{font:12px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.text dd{margin:2px 0 0;font-size:1.05rem;word-break:break-word}
+.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.status{font:12px var(--f-mono);color:var(--muted)}
+@media (max-width:760px){.text{grid-template-columns:minmax(0,1fr)}.menu{justify-content:flex-start;max-width:none}}
+
+footer{padding-block:28px 40px;color:var(--muted);font:12px var(--f-mono);letter-spacing:.06em}
+
+/* lightbox */
+#lb{width:100%;height:100%;max-width:none;max-height:none;margin:0;border:0;padding:0;background:var(--lb-bg);color:var(--lb-fg);overflow:hidden}
+#lb[open]{display:grid;grid-template-rows:auto minmax(0,1fr) auto;padding:max(12px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(12px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+#lb::backdrop{background:var(--lb-bg)}
+.lb-top{display:flex;justify-content:flex-end}
+#lb .btn{color:var(--lb-fg);border-color:#46433c}
+.lb-stage{min-height:0;display:grid;place-items:center;position:relative}
+.lb-stage img{max-width:100%;max-height:calc(100dvh - 150px);object-fit:contain}
+.lb-n{position:absolute;top:50%;transform:translateY(-50%);background:rgb(10 10 9 / .55)!important}
+.lb-prev{left:0}.lb-next{right:0}
+.lb-cap{margin:0;padding-top:10px;text-align:center;font:13px var(--f-mono);letter-spacing:.04em}
+.lb-cap span{color:#a29d92}
+
+/* elipse con ojos */
+.brand-group{display:flex;align-items:center;gap:18px}
+/* Tamaño: todo se calcula en em. Con font-size:4px la elipse mide 120x60px; sube o baja ese número para agrandarla o achicarla. */
+.elipse{position:relative;flex:none;font-size:4px;width:30em;height:15em;background-color:var(--accent);border-radius:50%}
+.ojo{position:absolute;top:3.5em;width:5em;height:6em;background-color:white;border-radius:50%}
+.ojo.izquierdo{left:8.5em}
+.ojo.derecho{left:16.5em}
+.pupila{position:absolute;top:50%;left:50%;width:1.8em;height:1.8em;margin:-.9em 0 0 -.9em;background-color:black;border-radius:50%}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none!important}}
+</style>
+
+<div class="inner">
+  <header class="mast">
+    <div class="brand-group">
+      <a class="brand" href="#lugares" data-view="lugares" id="brand">Pyter</a>
+      <div class="elipse" aria-hidden="true">
+        <div class="ojo izquierdo"><div class="pupila"></div></div>
+        <div class="ojo derecho"><div class="pupila"></div></div>
+      </div>
+    </div>
+    <nav aria-label="Secciones">
+      <ul class="menu" id="menu">
+        <li><a href="#gente" data-view="gente">Gente</a></li>
+        <li><a href="#lugares" data-view="lugares">Lugares</a></li>
+        <li><a href="#cosas" data-view="cosas">Cosas</a></li>
+        <li><a href="#acerca" data-view="acerca">Acerca de</a></li>
+        <li><a href="#contacto" data-view="contacto">Contacto</a></li>
+      </ul>
+    </nav>
+  </header>
+</div>
+
+<main id="view"></main>
+
+<div class="inner"><footer id="foot"></footer></div>
+
+<dialog id="lb" aria-label="Foto ampliada">
+  <div class="lb-top"><button type="button" class="btn" id="lbx">Cerrar</button></div>
+  <div class="lb-stage">
+    <button type="button" class="btn lb-n lb-prev" id="lbp" aria-label="Foto anterior">←</button>
+    <img id="lbimg" alt="">
+    <button type="button" class="btn lb-n lb-next" id="lbn" aria-label="Foto siguiente">→</button>
+  </div>
+  <p class="lb-cap" id="lbcap"></p>
+</dialog>
+
+<script>
+/* ---------- Contenido: edita aquí ---------- */
+const SITIO = {
+  nombre: 'Pyter',
+  correo: 'tucorreo@ejemplo.com',
+  instagram: '@tuusuario',
+  acerca: [
+    'Fotografío gente, lugares y cosas pequeñas que encuentro en el camino.',
+    'Este otoño me estoy fijando sobre todo en la luz de octubre: cae temprano, es más cálida y deja sombras largas.'
+  ]
+};
+/* Para usar tus fotos: guarda el archivo en la carpeta fotos/ y agrega src:'fotos/nombre.jpg'.
+   Sin src, el código dibuja una foto de ejemplo. r es la proporción ancho/alto del ejemplo. */
+const FOTOS = {
+  lugares: [
+    { t:'camino al trabajo',        n:'Octubre 2026', src:"fotosweb/octubre1.jpeg" },
+    { t:'llegada al trabajo',        n:'Octubre 2026', src:"fotosweb/octubre2.jpeg" },
+    { t:'entrada',               n:'Octubre 2026', src:"fotosweb/octubre3.jpeg" },
+    { t:'atardecer',               n:'Octubre 2026', src:"fotosweb/octubre4.jpeg" },
+    { t:'sol',                      n:'Octubre 2026', src:"fotosweb/octubre5.jpeg" },
+    { t:'Calle mojada',             n:'Octubre 2026', r:.64 },
+    { t:'Ocre sobre el cerro',      n:'Octubre 2026', r:.76 },
+    { t:'Niebla en el bosque',      n:'Octubre 2026', r:.70 }
+  ],
+  gente: [
+    { t:'Hora dorada',     n:'Octubre 2026', r:.72 },
+    { t:'Verde y niebla',  n:'Octubre 2026', r:.66 },
+    { t:'Silueta azul',    n:'Octubre 2026', r:.78 },
+    { t:'Luz de desierto', n:'Octubre 2026', r:.70 },
+    { t:'Noche cálida',    n:'Octubre 2026', r:.64 },
+    { t:'Retrato en gris', n:'Octubre 2026', r:.76 },
+    { t:'Contraluz',       n:'Octubre 2026', r:.68 },
+    { t:'Fondo de luces',  n:'Octubre 2026', r:.74 }
+  ],
+  cosas: [
+    { t:'Pieza de cobre',   n:'Octubre 2026', r:.80 },
+    { t:'Caja negra',       n:'Octubre 2026', r:.70 },
+    { t:'Moneda azul',      n:'Octubre 2026', r:.66 },
+    { t:'Pieza de latón',   n:'Octubre 2026', r:.76 },
+    { t:'Caja de madera',   n:'Octubre 2026', r:.72 },
+    { t:'Moneda vieja',     n:'Octubre 2026', r:.68 },
+    { t:'Pieza gris',       n:'Octubre 2026', r:.78 },
+    { t:'Caja pequeña',     n:'Octubre 2026', r:.64 }
+  ]
+};
+const TITULOS = { gente:'Gente', lugares:'Lugares', cosas:'Cosas', acerca:'Acerca de', contacto:'Contacto' };
+
+/* ---------- Utilidades ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function rng(seed){
+  return function(){
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+/* ---------- Fotos de ejemplo (se dibujan aquí) ---------- */
+const PALS = [
+  { sky:['#2b2a4a','#b9633a','#f2b567'], sun:'#ffe2a8', ridges:['#6a3a3a','#4a2a2c','#2a1a1e','#150e12'] },
+  { sky:['#1c2b2e','#5f7b72','#cfd8c2'], sun:'#f4efd8', ridges:['#6f8a7a','#4a6558','#2b4038','#16231f'] },
+  { sky:['#0f1b3a','#3a5a8a','#e0b08a'], sun:'#ffd9a0', ridges:['#4a5a7a','#2f3d5a','#1c2640','#0c1222'] },
+  { sky:['#6a8fb0','#e8c79a','#f0e0c0'], sun:'#fff4d6', ridges:['#c98a5a','#a8693f','#7a4a2c','#4a2a1a'] },
+  { sky:['#0b0a16','#3a2040','#c4603a'], sun:'#ffcf8a', ridges:['#3a2440','#241530','#150c20','#0a0612'] },
+  { sky:['#2c3238','#6f7a82','#c5ccd0'], sun:'#e8ecee', ridges:['#6a747c','#4a545c','#2c353c','#161c20'] }
+];
+const NOISE = (() => {
+  const n = document.createElement('canvas'); n.width = n.height = 160;
+  const x = n.getContext('2d'), id = x.createImageData(160, 160);
+  for (let i = 0; i < id.data.length; i += 4){ const v = Math.random() * 255; id.data[i] = id.data[i + 1] = id.data[i + 2] = v; id.data[i + 3] = 255; }
+  x.putImageData(id, 0, 0); return n;
+})();
+
+function lugar(c, W, H, R, P){
+  const g = c.createLinearGradient(0, 0, 0, H * .7);
+  P.sky.forEach((s, i) => g.addColorStop(i / (P.sky.length - 1), s));
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  const sx = W * (.25 + R() * .5), sy = H * (.28 + R() * .18);
+  const sg = c.createRadialGradient(sx, sy, 0, sx, sy, W * .55);
+  sg.addColorStop(0, P.sun + 'cc'); sg.addColorStop(.15, P.sun + '55'); sg.addColorStop(1, P.sun + '00');
+  c.fillStyle = sg; c.fillRect(0, 0, W, H);
+  c.fillStyle = P.sun; c.beginPath(); c.arc(sx, sy, W * .035, 0, 6.283); c.fill();
+  P.ridges.forEach((col, i) => {
+    const base = H * (.5 + i * .12), amp = H * (.07 - i * .012), f = 1.2 + R() * 2, ph = R() * 6.28, f2 = 4 + R() * 3, ph2 = R() * 6.28;
+    c.beginPath(); c.moveTo(0, H);
+    for (let x = 0; x <= W; x += 6){
+      c.lineTo(x, base + Math.sin(x / W * f * 6.28 + ph) * amp + Math.sin(x / W * f2 * 6.28 + ph2) * amp * .35);
+    }
+    c.lineTo(W, H); c.closePath(); c.fillStyle = col; c.fill();
+    if (i < 2){
+      const mg = c.createLinearGradient(0, base - amp, 0, base + amp * 3);
+      mg.addColorStop(0, P.sky[2] + '00'); mg.addColorStop(1, P.sky[2] + '40');
+      c.fillStyle = mg; c.fillRect(0, base - amp, W, amp * 4);
+    }
+  });
+  c.fillStyle = P.ridges[3];
+  for (let i = 0; i < 16; i++){
+    const x = R() * W, h = H * (.07 + R() * .13), w = h * .32, y = H * (.86 + R() * .12);
+    c.beginPath(); c.moveTo(x, y - h); c.lineTo(x + w, y); c.lineTo(x - w, y); c.closePath(); c.fill();
+  }
+}
+function cosa(c, W, H, R, P, idx){
+  const warm = idx % 2 === 0;
+  const bg = c.createLinearGradient(0, 0, W, H);
+  if (warm){ bg.addColorStop(0, '#b98a55'); bg.addColorStop(1, '#6e4a2a'); } else { bg.addColorStop(0, '#2b2f36'); bg.addColorStop(1, '#0e1014'); }
+  c.fillStyle = bg; c.fillRect(0, 0, W, H);
+  c.strokeStyle = warm ? 'rgba(60,30,10,.25)' : 'rgba(255,255,255,.05)'; c.lineWidth = 3;
+  for (let y = -20; y < H + 20; y += 26){
+    c.beginPath();
+    for (let x = 0; x <= W; x += 8) c.lineTo(x, y + Math.sin(x / 70 + y / 40) * 8);
+    c.stroke();
+  }
+  const cx = W * .5, cy = H * (.5 + (R() - .5) * .1), s = W * (.2 + R() * .06), kind = idx % 3;
+  const sh = c.createRadialGradient(cx + s * .15, cy + s * .25, s * .2, cx + s * .15, cy + s * .25, s * 1.5);
+  sh.addColorStop(0, 'rgba(0,0,0,.5)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = sh; c.fillRect(0, 0, W, H);
+  if (kind === 0){
+    const mg = c.createLinearGradient(cx - s, cy - s, cx + s, cy + s);
+    mg.addColorStop(0, '#e3a077'); mg.addColorStop(.5, '#9a5a3a'); mg.addColorStop(1, '#5a3220');
+    c.fillStyle = mg; c.beginPath(); c.arc(cx, cy, s, 0, 6.283); c.fill();
+    c.strokeStyle = 'rgba(255,230,200,.5)'; c.lineWidth = 3; c.beginPath(); c.arc(cx, cy, s - 2, 0, 6.283); c.stroke();
+    c.fillStyle = 'rgba(30,14,8,.8)';
+    for (let i = 0; i < 6; i++){
+      const a = i / 6 * 6.283;
+      c.beginPath(); c.arc(cx + Math.cos(a) * s * .6, cy + Math.sin(a) * s * .6, s * .17, 0, 6.283); c.fill();
+    }
+    c.fillStyle = '#c98a5e'; c.beginPath(); c.arc(cx, cy, s * .2, 0, 6.283); c.fill();
+  } else if (kind === 1){
+    const w = s * 1.9, h = s * 1.5;
+    c.fillStyle = warm ? '#17120f' : '#1d2026'; c.fillRect(cx - w / 2, cy - h / 2, w, h);
+    c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = 2; c.strokeRect(cx - w / 2 + 2, cy - h / 2 + 2, w - 4, h - 4);
+    c.fillStyle = 'rgba(255,255,255,.7)'; c.fillRect(cx - w * .2, cy - 4, w * .4, 3);
+    c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(cx - w * .14, cy + 12, w * .28, 2);
+  } else {
+    const rg = c.createLinearGradient(cx - s, cy - s, cx + s, cy + s);
+    rg.addColorStop(0, '#f2f4f6'); rg.addColorStop(1, '#7d8790');
+    c.fillStyle = rg; c.beginPath(); c.arc(cx, cy, s * .85, 0, 6.283); c.fill();
+    const ig = c.createLinearGradient(cx, cy - s * .6, cx, cy + s * .6);
+    ig.addColorStop(0, '#7fd0ff'); ig.addColorStop(.6, '#2a78b8'); ig.addColorStop(1, '#14324e');
+    c.fillStyle = ig; c.beginPath(); c.arc(cx, cy, s * .6, 0, 6.283); c.fill();
+    c.fillStyle = '#e9eef2'; c.beginPath(); c.moveTo(cx - s * .5, cy + s * .25); c.lineTo(cx - s * .1, cy - s * .15); c.lineTo(cx + s * .15, cy + s * .12); c.lineTo(cx + s * .32, cy - s * .02); c.lineTo(cx + s * .55, cy + s * .25); c.closePath(); c.fill();
+  }
+}
+function gente(c, W, H, R, P){
+  const g = c.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, P.sky[0]); g.addColorStop(1, P.ridges[2]); c.fillStyle = g; c.fillRect(0, 0, W, H);
+  for (let i = 0; i < 26; i++){
+    const x = R() * W, y = R() * H * .7, r = 18 + R() * 60, col = [P.sun, P.sky[1], P.sky[2]][(R() * 3) | 0];
+    const bg = c.createRadialGradient(x, y, 0, x, y, r);
+    bg.addColorStop(0, col + '66'); bg.addColorStop(.8, col + '33'); bg.addColorStop(1, col + '00');
+    c.fillStyle = bg; c.beginPath(); c.arc(x, y, r, 0, 6.283); c.fill();
+  }
+  const cx = W * (.4 + R() * .2), hy = H * .38, hr = W * .1;
+  c.fillStyle = '#0d0b0e'; c.beginPath(); c.moveTo(cx - W * .42, H);
+  c.quadraticCurveTo(cx - W * .4, hy + hr * 2.2, cx, hy + hr * 1.6);
+  c.quadraticCurveTo(cx + W * .4, hy + hr * 2.2, cx + W * .42, H); c.closePath(); c.fill();
+  c.fillStyle = '#1a1214'; c.fillRect(cx - hr * .38, hy + hr * .6, hr * .76, hr * 1.2);
+  c.beginPath(); c.ellipse(cx, hy, hr * .86, hr, 0, 0, 6.283); c.fill();
+  const rl = c.createLinearGradient(cx - hr, 0, cx + hr, 0);
+  rl.addColorStop(0, P.sun + '00'); rl.addColorStop(1, P.sun + 'bb');
+  c.strokeStyle = rl; c.lineWidth = 5; c.beginPath(); c.ellipse(cx, hy, hr * .86, hr, 0, -1.2, 1.2); c.stroke();
+  if (R() < .5){
+    c.fillStyle = '#0a080b'; c.beginPath(); c.ellipse(cx, hy - hr * .7, hr * 1.5, hr * .22, 0, 0, 6.283); c.fill();
+    c.fillRect(cx - hr * .8, hy - hr * 1.35, hr * 1.6, hr * .7);
+  }
+}
+function makePhoto(kind, idx, r){
+  const W = 720, H = Math.round(W / r);
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const c = cv.getContext('2d'), R = rng(idx * 97 + kind.length * 13 + 5), P = PALS[idx % PALS.length];
+  if (kind === 'lugares') lugar(c, W, H, R, P);
+  else if (kind === 'cosas') cosa(c, W, H, R, P, idx);
+  else gente(c, W, H, R, P);
+  c.save(); c.globalAlpha = .09; c.globalCompositeOperation = 'overlay';
+  c.fillStyle = c.createPattern(NOISE, 'repeat'); c.fillRect(0, 0, W, H); c.restore();
+  const vg = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .35, W / 2, H / 2, Math.max(W, H) * .75);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.45)');
+  c.fillStyle = vg; c.fillRect(0, 0, W, H);
+  return { src: cv.toDataURL('image/jpeg', .85), w: W, h: H };
+}
+
+/* ---------- Vistas ---------- */
+const view = $('#view'), menu = $('#menu');
+const cache = {};
+let current = null, items = [], lbIndex = 0;
+
+function photosFor(k){
+  if (cache[k]) return cache[k];
+  cache[k] = FOTOS[k].map((p, i) => {
+    if (p.src) return { t:p.t, n:p.n, src:p.src, ejemplo:false };
+    const m = makePhoto(k, i, p.r || .72);
+    return { t:p.t, n:p.n, src:m.src, w:m.w, h:m.h, ejemplo:true };
+  });
+  return cache[k];
+}
+function galleryHtml(k){
+  items = photosFor(k);
+  const hayEjemplo = items.some(p => p.ejemplo);
+  return `<div class="inner head-row"><h1>${TITULOS[k]}</h1><p class="count">${String(items.length).padStart(2, '0')} fotos</p></div>
+  <div class="strip" id="strip" tabindex="0" role="region" aria-label="Fotos de ${TITULOS[k]}">` +
+    items.map((p, i) => `<figure><button type="button" class="ph" data-i="${i}" aria-label="Abrir foto: ${p.t}"><img src="${p.src}" alt="${p.t}"${p.w ? ` width="${p.w}" height="${p.h}"` : ''} draggable="false"></button></figure>`).join('') +
+  `</div>
+  <div class="inner bar"><div class="arrows"><button type="button" id="prev" aria-label="Fotos anteriores">←</button><button type="button" id="next" aria-label="Fotos siguientes">→</button></div>` +
+  (hayEjemplo ? `<p class="note">Fotos de ejemplo dibujadas por el código. Para usar las tuyas, guarda cada archivo en la carpeta fotos/ y agrega su nombre en src.</p>` : '') + `</div>`;
+}
+function textHtml(k){
+  if (k === 'acerca'){
+    return `<div class="inner head-row"><h1>${TITULOS[k]}</h1></div>
+    <div class="inner text"><div>${SITIO.acerca.map(p => `<p>${p}</p>`).join('')}<p class="note">Texto de ejemplo. Cámbialo en SITIO.acerca.</p></div>
+    <dl><div><dt>Temas</dt><dd>Gente, lugares y cosas</dd></div><div><dt>Temporada</dt><dd>Otoño 2026</dd></div></dl></div>`;
+  }
+  return `<div class="inner head-row"><h1>${TITULOS[k]}</h1></div>
+  <div class="inner text"><div><p>Si quieres una foto, un encargo o solo decir hola, escríbeme.</p>
+  <div class="row"><span id="mail">${SITIO.correo}</span><button type="button" class="btn" id="copy">Copiar</button><span class="status" id="cstatus" role="status"></span></div>
+  <p class="note" style="margin-top:14px">Correo de ejemplo. Cámbialo en SITIO.correo.</p></div>
+  <dl><div><dt>Instagram</dt><dd>${SITIO.instagram}</dd></div></dl></div>`;
+}
+function paint(k){
+  current = k;
+  view.innerHTML = FOTOS[k] ? galleryHtml(k) : textHtml(k);
+  menu.querySelectorAll('a').forEach(a => { if (a.dataset.view === k) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  if (FOTOS[k]) bindStrip(); else bindText();
+}
+function go(k){
+  if (!TITULOS[k] || k === current) return;
+  if (document.startViewTransition && !REDUCE) document.startViewTransition(() => paint(k));
+  else paint(k);
+  try { history.replaceState(null, '', '#' + k); } catch(e){}
+}
+
+/* franja: arrastrar, rueda y flechas */
+let drag = null, moved = false;
+function bindStrip(){
+  const strip = $('#strip');
+  strip.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    drag = { x:e.clientX, s:strip.scrollLeft, el:strip }; moved = false;
+  });
+  strip.addEventListener('wheel', e => {
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+    const max = strip.scrollWidth - strip.clientWidth;
+    if ((e.deltaY < 0 && strip.scrollLeft <= 0) || (e.deltaY > 0 && strip.scrollLeft >= max - 1)) return;
+    e.preventDefault(); strip.scrollLeft += e.deltaY;
+  }, { passive:false });
+  strip.addEventListener('click', e => {
+    const b = e.target.closest('.ph'); if (!b || moved) return;
+    openLb(+b.dataset.i);
+  });
+  const by = dir => strip.scrollBy({ left:dir * strip.clientWidth * .8, behavior:REDUCE ? 'auto' : 'smooth' });
+  $('#prev').addEventListener('click', () => by(-1));
+  $('#next').addEventListener('click', () => by(1));
+}
+window.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x;
+  if (Math.abs(dx) > 5){ moved = true; drag.el.classList.add('dragging'); }
+  if (moved) drag.el.scrollLeft = drag.s - dx;
+});
+window.addEventListener('pointerup', () => {
+  if (!drag) return;
+  const el = drag.el; drag = null;
+  setTimeout(() => { el.classList.remove('dragging'); moved = false; }, 0);
+});
+
+function bindText(){
+  const btn = $('#copy'); if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const st = $('#cstatus');
+    try { await navigator.clipboard.writeText(SITIO.correo); st.textContent = 'Copiado'; }
+    catch(e){
+      const r = document.createRange(); r.selectNodeContents($('#mail'));
+      const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+      st.textContent = 'Selecciona y copia';
+    }
+  });
+}
+
+/* ---------- Visor ---------- */
+const lb = $('#lb');
+function showLb(){
+  const p = items[lbIndex];
+  $('#lbimg').src = p.src; $('#lbimg').alt = p.t;
+  $('#lbcap').innerHTML = `${p.t} <span>· ${p.n} · ${lbIndex + 1} / ${items.length}</span>`;
+}
+function openLb(i){ lbIndex = i; showLb(); lb.showModal(); $('#lbx').focus(); }
+function stepLb(d){ lbIndex = (lbIndex + d + items.length) % items.length; showLb(); }
+$('#lbx').addEventListener('click', () => lb.close());
+$('#lbp').addEventListener('click', () => stepLb(-1));
+$('#lbn').addEventListener('click', () => stepLb(1));
+lb.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft'){ e.preventDefault(); stepLb(-1); }
+  if (e.key === 'ArrowRight'){ e.preventDefault(); stepLb(1); }
+});
+lb.addEventListener('close', () => {
+  const b = view.querySelector(`.ph[data-i="${lbIndex}"]`);
+  if (b){ b.focus({ preventScroll:true }); b.scrollIntoView({ inline:'nearest', block:'nearest' }); }
+});
+
+/* ---------- Arranque ---------- */
+document.addEventListener('click', e => {
+  const a = e.target.closest('a[data-view]'); if (!a) return;
+  e.preventDefault(); go(a.dataset.view);
+});
+$('#brand').textContent = SITIO.nombre;
+$('#foot').textContent = `© ${new Date().getFullYear()} ${SITIO.nombre}`;
+const start = (location.hash || '').slice(1);
+paint(TITULOS[start] ? start : 'lugares');
+
+/* ---------- Ojos que siguen el mouse ---------- */
+(() => {
+  const ojos = document.querySelectorAll('.ojo');
+  document.addEventListener('mousemove', (e) => {
+    ojos.forEach((ojo) => {
+      const pupila = ojo.querySelector('.pupila');
+      const caja = ojo.getBoundingClientRect();
+      const dx = e.clientX - (caja.left + caja.width / 2);
+      const dy = e.clientY - (caja.top + caja.height / 2);
+      const angulo = Math.atan2(dy, dx);
+      const distancia = Math.min(Math.hypot(dx, dy) / 100, 1);
+      pupila.style.transform =
+        `translate(${Math.cos(angulo) * caja.width * 0.28 * distancia}px, ${Math.sin(angulo) * caja.height * 0.32 * distancia}px)`;
+    });
+  });
+})();
+</script>
+
+</html>
